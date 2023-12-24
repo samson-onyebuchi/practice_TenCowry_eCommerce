@@ -63,7 +63,8 @@ from flask import Flask, request
 from flask_restful import Api, Resource
 from flask_mail import Mail, Message
 import random
-import os 
+import os
+from pymongo import MongoClient
 
 app = Flask(__name__)
 api = Api(app)
@@ -77,6 +78,12 @@ app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
 app.config['MAIL_PASSWORD'] = os.getenv("EMAIL_PASSWORD")
 
 mail = Mail(app)
+
+# MongoDB connection
+mongo_uri = os.getenv("MONGO_URI")  # Set your MongoDB Atlas URI
+client = MongoClient(mongo_uri)
+db = client["TenCowry"]  # Replace 'your_database_name' with your actual database name
+registered_emails_collection = db["Users"]
 
 # Simple in-memory storage for OTPs (replace this with a proper storage mechanism in production)
 otp_storage = {}
@@ -93,6 +100,11 @@ class ChangePasswordResource(Resource):
             return {'error': 'Email address is required'}, 400
 
         email = data['email']
+
+        # Check if the email exists in the MongoDB collection
+        if registered_emails_collection.find_one({'email': email}) is None:
+            return {'error': 'Email does not exist'}, 404
+
         otp = generate_otp()
 
         # Store OTP in memory (replace this with a proper storage mechanism in production)
