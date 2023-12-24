@@ -65,6 +65,7 @@ from flask_mail import Mail, Message
 import random
 import os
 from pymongo import MongoClient
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 api = Api(app)
@@ -80,19 +81,18 @@ app.config['MAIL_PASSWORD'] = os.getenv("EMAIL_PASSWORD")
 mail = Mail(app)
 
 # MongoDB connection
-mongo_uri = os.getenv("MONGO_URI")  # Set your MongoDB Atlas URI
+mongo_uri = os.getenv("MONGO_URI") 
 client = MongoClient(mongo_uri)
-db = client["TenCowry"]  # Replace 'your_database_name' with your actual database name
-registered_emails_collection = db["Users"]
+db = client['TenCowry']  
+registered_emails_collection = db['Users']
 
-# Simple in-memory storage for OTPs (replace this with a proper storage mechanism in production)
 otp_storage = {}
 
 # Generate a random 6-digit OTP
 def generate_otp():
     return str(random.randint(100000, 999999))
 
-class ChangePasswordResource(Resource):
+class RequestOTPResource(Resource):
     def post(self):
         data = request.json
 
@@ -107,13 +107,38 @@ class ChangePasswordResource(Resource):
 
         otp = generate_otp()
 
-        # Store OTP in memory (replace this with a proper storage mechanism in production)
-        otp_storage[email] = otp
+        timestamp = datetime.now()
+        otp_storage[email] = {'otp': otp, 'timestamp': timestamp}
 
         # Send OTP via email
         msg = Message('Your OTP is {}'.format(otp), sender=os.getenv("MAIL_USERNAME"), recipients=[email])
         mail.send(msg)
 
         return {'message': 'OTP sent successfully'}, 200
+api.add_resource(RequestOTPResource, '/api/v1/ecommerce/request-otp')
 
-api.add_resource(ChangePasswordResource, '/api/v1/ecommerce/change-password')
+
+class VerifyOTPResource(Resource):
+    def post(self):
+        data = request.json
+
+        if 'email' not in data or 'entered_otp' not in data:
+            return {'error': 'Email and entered_otp are required in the request body'}, 400
+
+        email = data['email']
+        entered_otp = data['entered_otp']
+
+        stored_data = otp_storage.get(email)
+
+        if not stored_data:
+            return {'error': 'OTP not found'}, 404
+
+        stored_otp = stored_data['otp']
+        timestamp = stored_data['timestamp']
+
+        if entered_otp == stored_otp and datetime.now() - timestamp < timedelta(minutes=30):
+            return {'message': 'OTP is valid'}, 200
+        else:
+            return {'error': 'Invalid or expired OTP'}, 400
+
+api.add_resource(VerifyOTPResource, '/api/v1/ecommerce/verify-otp')
