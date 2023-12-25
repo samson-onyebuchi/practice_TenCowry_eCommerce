@@ -98,60 +98,60 @@ class RequestOTPResource(Resource):
         data = request.json
 
         if 'email' not in data:
-            return {'error': 'Email address is required'}, 400
+            return {"status": False, "message": "Email address is required in the payload", "data": None}, 400
+
+        if len(data) > 1:
+            return {"status": False, "message": "Only one payload (email) is allowed", "data": None}, 400
 
         email = data['email']
 
-        # Check if the email exists in the MongoDB collection
         if registered_emails_collection.find_one({'email': email}) is None:
-            return {'error': 'Email does not exist'}, 404
+            return {"status": False, "message": "Email does not exist", "data": None}, 404
 
         otp = generate_otp()
 
         timestamp = datetime.now()
         otp_storage[email] = {'otp': otp, 'timestamp': timestamp}
 
-        # Send OTP via email
         msg = Message('Your OTP is {}'.format(otp), sender=os.getenv("MAIL_USERNAME"), recipients=[email])
         mail.send(msg)
 
-        return {'message': 'OTP sent successfully'}, 200
-api.add_resource(RequestOTPResource, '/api/v1/ecommerce/request-otp')
+        return {"status": True, "message": "OTP sent successfully", "data": None}, 200
 
+api.add_resource(RequestOTPResource, '/api/v1/ecommerce/request-otp')
 
 class VerifyOTPResource(Resource):
     def post(self):
         data = request.json
 
         if 'email' not in data or 'entered_otp' not in data or 'new_password' not in data:
-            return {'error': 'Email, entered_otp, and new_password are required in the request body'}, 400
+            return {"status": False, "message": "Email, entered_otp, and new_password are required in the request body", "data": None}, 400
 
         email = data['email']
         entered_otp = data['entered_otp']
         new_password = data['new_password']
 
-        # Retrieve the user from the 'Users' collection based on the email
         user = registered_emails_collection.find_one({'email': email})
 
         if not user:
-            return {'error': 'User not found'}, 404
+            return {"status": False, "message": "User not found", "data": None}, 404
 
-        # Check if the user has a valid OTP
         stored_data = otp_storage.get(email)
 
         if not stored_data:
-            return {'error': 'OTP not found'}, 404
+            return {"status": False, "message": "OTP not found", "data": None}, 404
 
         stored_otp = stored_data['otp']
         timestamp = stored_data['timestamp']
 
         if entered_otp == stored_otp and datetime.now() - timestamp < timedelta(minutes=30):
-            # OTP is valid, now update the password in MongoDB
             user_id = user['_id']
             registered_emails_collection.update_one({'_id': ObjectId(user_id)}, {'$set': {'password': new_password}})
 
-            return {'message': 'Password updated successfully'}, 200
+            return {"status": True, "message": "Password updated successfully", "data": None}, 200
         else:
-            return {'error': 'Invalid or expired OTP'}, 400
+            return {"status": False, "message": "Invalid or expired OTP", "data": None}, 400
 
 api.add_resource(VerifyOTPResource, '/api/v1/ecommerce/verify-otp')
+
+
