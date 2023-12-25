@@ -66,6 +66,7 @@ import random
 import os
 from pymongo import MongoClient
 from datetime import datetime, timedelta
+from bson.objectid import ObjectId
 
 app = Flask(__name__)
 api = Api(app)
@@ -122,12 +123,20 @@ class VerifyOTPResource(Resource):
     def post(self):
         data = request.json
 
-        if 'email' not in data or 'entered_otp' not in data:
-            return {'error': 'Email and entered_otp are required in the request body'}, 400
+        if 'email' not in data or 'entered_otp' not in data or 'new_password' not in data:
+            return {'error': 'Email, entered_otp, and new_password are required in the request body'}, 400
 
         email = data['email']
         entered_otp = data['entered_otp']
+        new_password = data['new_password']
 
+        # Retrieve the user from the 'Users' collection based on the email
+        user = registered_emails_collection.find_one({'email': email})
+
+        if not user:
+            return {'error': 'User not found'}, 404
+
+        # Check if the user has a valid OTP
         stored_data = otp_storage.get(email)
 
         if not stored_data:
@@ -137,7 +146,11 @@ class VerifyOTPResource(Resource):
         timestamp = stored_data['timestamp']
 
         if entered_otp == stored_otp and datetime.now() - timestamp < timedelta(minutes=30):
-            return {'message': 'OTP is valid'}, 200
+            # OTP is valid, now update the password in MongoDB
+            user_id = user['_id']
+            registered_emails_collection.update_one({'_id': ObjectId(user_id)}, {'$set': {'password': new_password}})
+
+            return {'message': 'Password updated successfully'}, 200
         else:
             return {'error': 'Invalid or expired OTP'}, 400
 
