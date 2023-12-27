@@ -1,62 +1,16 @@
-# from functools import wraps
-# from flask import Flask, request, abort
-# from app.utils import *
+# # from functools import wraps
+# # from flask import Flask, request, abort
+# # from app.utils import *
 
-# app = Flask(__name__)
-
-
-
-# @app.route('/api/testing_for_access_token', methods=['GET'])
-# @token_required
-# def get_answer():
-#     return jsonify({"status": True, "message": "Access granted to protected route", "data": None}), 200
+# # app = Flask(__name__)
 
 
 
-# from flask import Flask, request
-# from flask_restful import Api, Resource
-# from werkzeug.security import generate_password_hash, check_password_hash
-# from pymongo import MongoClient
-# import pymongo
-# import os
+# # @app.route('/api/testing_for_access_token', methods=['GET'])
+# # @token_required
+# # def get_answer():
+# #     return jsonify({"status": True, "message": "Access granted to protected route", "data": None}), 200
 
-# app = Flask(__name__)
-# api = Api(app)
-
-
-# client = pymongo.MongoClient(os.getenv("MONGO_URI"))
-# db = client["TenCowry"]
-# users_collection = db["Users"]
-
-# class ChangePasswordResource(Resource):
-#     def post(self):
-#         data = request.get_json()
-
-#         email = data.get('email')
-#         current_password = data.get('currentPassword')
-#         new_password = data.get('newPassword')
-
-#         if not email or not current_password or not new_password:
-#             return {"error": "Missing required fields"}, 400
-
-#         user = users_collection.find_one({"email": email})
-
-#         try:
-#             if user:
-#                 stored_hashed_password = user["password"]
-
-#                 if check_password_hash(stored_hashed_password, current_password):
-#                     hashed_new_password = generate_password_hash(f"a{new_password}z")
-
-#                     users_collection.update_one({"email": user["email"]}, {"$set": {"password": hashed_new_password}})
-#                     return {"message": "Password changed successfully"}
-#                 else:
-#                     return {"error": "Invalid current password"}, 401
-#             else:
-#                 return {"error": "Invalid email"}, 401
-#         except Exception as e:            
-#             return {"error": "Internal Server Error"}, 500
-# api.add_resource(ChangePasswordResource, '/api/v1/ecommerce/change-password')
 
 
 from flask import Flask, request
@@ -67,6 +21,7 @@ import os
 from pymongo import MongoClient
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
+from werkzeug.security import generate_password_hash
 
 app = Flask(__name__)
 api = Api(app)
@@ -120,6 +75,7 @@ class RequestOTPResource(Resource):
 
 api.add_resource(RequestOTPResource, '/api/v1/ecommerce/request-otp')
 
+
 class VerifyOTPResource(Resource):
     def post(self):
         data = request.json
@@ -129,7 +85,7 @@ class VerifyOTPResource(Resource):
 
         email = data['email']
         entered_otp = data['entered_otp']
-        new_password = data['new_password']
+        new_password = generate_password_hash(f"a{data.get('new_password')}z")  # Hash the new password
 
         user = registered_emails_collection.find_one({'email': email})
 
@@ -146,6 +102,8 @@ class VerifyOTPResource(Resource):
 
         if entered_otp == stored_otp and datetime.now() - timestamp < timedelta(minutes=30):
             user_id = user['_id']
+            
+            # Update the password with the hashed password
             registered_emails_collection.update_one({'_id': ObjectId(user_id)}, {'$set': {'password': new_password}})
 
             return {"status": True, "message": "Password updated successfully", "data": None}, 200
@@ -153,5 +111,47 @@ class VerifyOTPResource(Resource):
             return {"status": False, "message": "Invalid or expired OTP", "data": None}, 400
 
 api.add_resource(VerifyOTPResource, '/api/v1/ecommerce/verify-otp')
+
+
+# from flask import Flask, request, jsonify
+# from flask_bcrypt import Bcrypt
+# from pymongo import MongoClient
+# import os
+# from werkzeug.security import check_password_hash, generate_password_hash
+
+# app = Flask(__name__)
+# bcrypt = Bcrypt()
+
+# # MongoDB connection
+# mongo_uri = os.getenv("MONGO_URI") 
+# client = MongoClient(mongo_uri)
+# db = client['TenCowry']  
+# users_collection = db['Users']
+
+# @app.route('/update_password', methods=['PUT'])
+# def update_password():
+#     # Get user input from request
+#     email = request.json.get('email')
+#     old_password = request.json.get('old_password')
+#     new_password = request.json.get('new_password')
+
+#     # Retrieve user from the database based on email
+#     user = users_collection.find_one({'email': email})
+
+#     # Check if the user exists
+#     if user is None:
+#         return jsonify({'error': 'User not found'}), 404
+
+#     # Check if the old password matches the stored hash
+#     if not bcrypt.check_password_hash(user['password'], f"a{old_password}z"):
+#         return jsonify({'error': 'Incorrect old password'}), 400
+
+#     # Hash the new password before updating
+#     hashed_new_password = bcrypt.generate_password_hash(f"a{new_password}z").decode('utf-8')
+
+#     # Update the password in the database
+#     users_collection.update_one({'email': email}, {'$set': {'password': hashed_new_password}})
+
+#     return jsonify({'message': 'Password updated successfully'}), 200
 
 
