@@ -133,14 +133,13 @@ class UpdatePasswordResource(Resource):
 
         # Check if the old password matches the stored hash
         stored_hash = user['password']
-        input_hash = generate_password_hash(f"a{old_password}z")
 
-        if not check_password_hash(stored_hash, input_hash):
+        if not check_password_hash(stored_hash, old_password):
             response = {"status": False, "message": "Incorrect old password", "data": None}
             return make_response(response, 400)
 
         # Hash the new password before updating
-        hashed_new_password = generate_password_hash(f"a{new_password}z")
+        hashed_new_password = generate_password_hash(new_password)
 
         # Update the password in the database
         registered_emails_collection.update_one({'email': email}, {'$set': {'password': hashed_new_password}})
