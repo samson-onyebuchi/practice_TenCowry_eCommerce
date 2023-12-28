@@ -13,7 +13,7 @@
 
 
 
-from flask import Flask, request
+from flask import Flask, request, make_response
 from flask_restful import Api, Resource
 from flask_mail import Mail, Message
 import random
@@ -21,10 +21,13 @@ import os
 from pymongo import MongoClient
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import Flask, request, jsonify
+from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
 api = Api(app)
+bcrypt = Bcrypt()
 
 # Configure email settings
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -113,45 +116,37 @@ class VerifyOTPResource(Resource):
 api.add_resource(VerifyOTPResource, '/api/v1/ecommerce/verify-otp')
 
 
-# from flask import Flask, request, jsonify
-# from flask_bcrypt import Bcrypt
-# from pymongo import MongoClient
-# import os
-# from werkzeug.security import check_password_hash, generate_password_hash
+class UpdatePasswordResource(Resource):
+    def put(self):
+        # Get user input from request
+        email = request.json.get('email')
+        old_password = request.json.get('old_password')
+        new_password = request.json.get('new_password')
 
-# app = Flask(__name__)
-# bcrypt = Bcrypt()
+        # Retrieve user from the database based on email
+        user = registered_emails_collection.find_one({'email': email})
 
-# # MongoDB connection
-# mongo_uri = os.getenv("MONGO_URI") 
-# client = MongoClient(mongo_uri)
-# db = client['TenCowry']  
-# users_collection = db['Users']
+        # Check if the user exists
+        if user is None:
+            response = {"status": False, "message": "User not found", "data": None}
+            return make_response(response, 404)
 
-# @app.route('/update_password', methods=['PUT'])
-# def update_password():
-#     # Get user input from request
-#     email = request.json.get('email')
-#     old_password = request.json.get('old_password')
-#     new_password = request.json.get('new_password')
+        # Check if the old password matches the stored hash
+        stored_hash = user['password']
+        input_hash = generate_password_hash(f"a{old_password}z")
 
-#     # Retrieve user from the database based on email
-#     user = users_collection.find_one({'email': email})
+        if not check_password_hash(stored_hash, input_hash):
+            response = {"status": False, "message": "Incorrect old password", "data": None}
+            return make_response(response, 400)
 
-#     # Check if the user exists
-#     if user is None:
-#         return jsonify({'error': 'User not found'}), 404
+        # Hash the new password before updating
+        hashed_new_password = generate_password_hash(f"a{new_password}z")
 
-#     # Check if the old password matches the stored hash
-#     if not bcrypt.check_password_hash(user['password'], f"a{old_password}z"):
-#         return jsonify({'error': 'Incorrect old password'}), 400
+        # Update the password in the database
+        registered_emails_collection.update_one({'email': email}, {'$set': {'password': hashed_new_password}})
 
-#     # Hash the new password before updating
-#     hashed_new_password = bcrypt.generate_password_hash(f"a{new_password}z").decode('utf-8')
+        response = {"status": True, "message": "Password updated successfully", "data": None}
+        return make_response(response, 200)
 
-#     # Update the password in the database
-#     users_collection.update_one({'email': email}, {'$set': {'password': hashed_new_password}})
-
-#     return jsonify({'message': 'Password updated successfully'}), 200
-
-
+# Add the resource to the API with a specified endpoint
+api.add_resource(UpdatePasswordResource, '/update_password')
