@@ -118,34 +118,37 @@ api.add_resource(VerifyOTPResource, '/api/v1/ecommerce/verify-otp')
 
 class UpdatePasswordResource(Resource):
     def put(self):
-        # Get user input from request
-        email = request.json.get('email')
-        old_password = request.json.get('old_password')
-        new_password = request.json.get('new_password')
+        try:
+            email = request.json.get('email')
+            raw_old_password = request.json.get('old_password')
 
-        # Retrieve user from the database based on email
-        user = registered_emails_collection.find_one({'email': email})
+            
+            user = registered_emails_collection.find_one({'email': email})
 
-        # Check if the user exists
-        if user is None:
-            response = {"status": False, "message": "User not found", "data": None}
-            return make_response(response, 404)
+            # Check if the user exists
+            if user is None:
+                response = {"status": False, "message": "User not found", "data": None}
+                return make_response(response, 404)
 
-        # Check if the old password matches the stored hash
-        stored_hash = user['password']
+            # Check if the old password matches the stored hash using check_password_hash
+            stored_hash = user['password']
 
-        if not check_password_hash(stored_hash, old_password):
-            response = {"status": False, "message": "Incorrect old password", "data": None}
-            return make_response(response, 400)
+            if not check_password_hash(stored_hash, raw_old_password):
+                response = {"status": False, "message": "Incorrect old password", "data": None}
+                return make_response(response, 400)
 
-        # Hash the new password before updating
-        hashed_new_password = generate_password_hash(new_password)
 
-        # Update the password in the database
-        registered_emails_collection.update_one({'email': email}, {'$set': {'password': hashed_new_password}})
+            new_password = request.json.get('new_password')
+            hashed_new_password = generate_password_hash(new_password)
 
-        response = {"status": True, "message": "Password updated successfully", "data": None}
-        return make_response(response, 200)
+            registered_emails_collection.update_one({'email': email}, {'$set': {'password': hashed_new_password}})
 
-# Add the resource to the API with a specified endpoint
+            response = {"status": True, "message": "Password updated successfully", "data": None}
+            return make_response(response, 200)
+
+        except Exception as e:
+            print(f"Exception: {str(e)}")
+            response = {"status": False, "message": "Internal Server Error", "data": None}
+            return make_response(response, 500)
+
 api.add_resource(UpdatePasswordResource, '/update_password')
