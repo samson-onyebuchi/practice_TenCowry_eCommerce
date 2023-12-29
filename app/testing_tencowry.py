@@ -121,7 +121,6 @@ class UpdatePasswordResource(Resource):
         try:
             email = request.json.get('email')
             raw_old_password = request.json.get('old_password')
-
             
             user = registered_emails_collection.find_one({'email': email})
 
@@ -130,17 +129,16 @@ class UpdatePasswordResource(Resource):
                 response = {"status": False, "message": "User not found", "data": None}
                 return make_response(response, 404)
 
-            # Check if the old password matches the stored hash using check_password_hash
             stored_hash = user['password']
 
             if not check_password_hash(stored_hash, raw_old_password):
                 response = {"status": False, "message": "Incorrect old password", "data": None}
                 return make_response(response, 400)
 
-
             new_password = request.json.get('new_password')
             hashed_new_password = generate_password_hash(new_password)
 
+            # Update the password in MongoDB Atlas
             registered_emails_collection.update_one({'email': email}, {'$set': {'password': hashed_new_password}})
 
             response = {"status": True, "message": "Password updated successfully", "data": None}
