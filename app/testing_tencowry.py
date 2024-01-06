@@ -120,7 +120,7 @@ class UpdatePasswordResource(Resource):
     def put(self):
         try:
             email = request.json.get('email')
-            raw_old_password = request.json.get('old_password')
+            raw_old_password = f"a{request.json.get('old_password')}z"
             
             user = registered_emails_collection.find_one({'email': email})
 
@@ -136,7 +136,7 @@ class UpdatePasswordResource(Resource):
                 return make_response(response, 400)
 
             new_password = request.json.get('new_password')
-            hashed_new_password = generate_password_hash(new_password)
+            hashed_new_password = generate_password_hash(f"a{new_password}z")
 
             # Update the password in MongoDB Atlas
             registered_emails_collection.update_one({'email': email}, {'$set': {'password': hashed_new_password}})
