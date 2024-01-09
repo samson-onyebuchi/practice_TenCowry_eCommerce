@@ -102,16 +102,21 @@ class VerifyOTPResource(Resource):
 
         stored_otp = stored_data['otp']
         timestamp = stored_data['timestamp']
+        used = stored_data.get('used', False)
 
-        if entered_otp == stored_otp and datetime.now() - timestamp < timedelta(minutes=30):
-            user_id = user['_id']
-            
-            # Update the password with the hashed password
-            registered_emails_collection.update_one({'_id': ObjectId(user_id)}, {'$set': {'password': new_password}})
-
-            return {"status": True, "message": "Password updated successfully", "data": None}, 200
-        else:
+        if used or entered_otp != stored_otp or datetime.now() - timestamp > timedelta(minutes=30):
             return {"status": False, "message": "Invalid or expired OTP", "data": None}, 400
+
+        # Mark the OTP as used
+        otp_storage[email]['used'] = True
+        otp_storage[email]['used_timestamp'] = datetime.now()
+
+        user_id = user['_id']
+            
+        # Update the password with the hashed password
+        registered_emails_collection.update_one({'_id': ObjectId(user_id)}, {'$set': {'password': new_password}})
+
+        return {"status": True, "message": "Password updated successfully", "data": None}, 200
 
 api.add_resource(VerifyOTPResource, '/api/v1/ecommerce/verify-otp')
 
